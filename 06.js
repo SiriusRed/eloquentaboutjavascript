@@ -14,4 +14,4 @@ var killerRabbit = new Rabbit("killer");
 var blackRabbit = new Rabbit("black");
 
 console.log(Object.getOwnPropertyNames(Rabbit.prototype));
-// → true
+// → truegit push --set-upstream origin master
