@@ -1,3 +1,5 @@
+"use strict";
+
 function Vector(x,y) {
     this.x=x;
     this.y=y;
@@ -75,7 +77,7 @@ function World(map, legend) {
         for (var x=0; x<line.length; x++)  // Перебираем символы из массива плана. Вектор с заданными координатами превращаем в индекс одномерного массива элементов в мире.
             grid.set(new Vector(x,y), 
                     elementFromChar(legend, line[x])); // - ??? Спросить у Саши К. // Каждому символу на карте соответствует объект в объекте legend. В каждый элемент массива мира сетим объект.
-    },this);
+    });
 }
 
 World.prototype.toString = function() {
@@ -103,6 +105,7 @@ World.prototype.turn = function() {
     this.turnNumber+=1;
 }
 
+
 World.prototype.letAct = function(critter, vector) {
   var action = critter.act(new View(this, vector));
   if (action && action.type == "move") {
@@ -113,6 +116,20 @@ World.prototype.letAct = function(critter, vector) {
     }
   }
 };
+
+World.prototype.crittersCount = function() {
+    var countOfCritters = 0;
+    for (var y = 0; y < this.grid.height; y++) {
+        for(var x = 0; x < this.grid.width; x++) {
+            var element = this.grid.get(new Vector(x,y));
+            if (element != null &&
+                typeof element.act == "function" &&
+                charFromElement(element) != "*" ) 
+                    countOfCritters++;
+        }
+    }
+    return countOfCritters; 
+}
 
 
 World.prototype.checkDestination = function(action, vector) {
@@ -129,13 +146,14 @@ function View(world, vector) {
 }
 
 View.prototype.look = function(dir) {
+    if (typeof dir != 'string') console.log(dir);
     var target = this.vector.plus(directions[dir]);
     return this.world.grid.isInside(target) ? charFromElement(this.world.grid.get(target)) : "#" ;
 };
 
 View.prototype.findAll = function(ch) {
     var found = [];
-    for (dir in directions) 
+    for (var dir in directions) 
         if (this.look(dir) == ch) found.push(dir);
     return found;
 };
@@ -147,7 +165,7 @@ View.prototype.find = function(ch) {
 };
 
 
-Wall = function() {}
+var Wall = function() {}
 
 function BouncingCritter() {
     this.direction = randomElement(Object.keys(directions));
@@ -173,7 +191,6 @@ function dirPlus(dir, n) {
 }
 
 function WallFollower() {
-  
   this.dir = "s";
 }
 
@@ -247,7 +264,6 @@ function Plant() {
     this.energy = 3 + Math.random() * 4;
 }
 
-
 Plant.prototype.act = function(context) {
   if (this.energy > 15) {
     var space = context.find(" ");
@@ -257,7 +273,6 @@ Plant.prototype.act = function(context) {
   if (this.energy < 20)
     return {type: "grow"};
 };
-
 
 function PlantEater() {
     this.energy = 20;
@@ -271,26 +286,99 @@ PlantEater.prototype.act = function(context) {
     if (space) return {type: "move", direction: space};
 };
 
-var valley = new LifelikeWorld(
-  ["############################",
-   "#####                 ######",
-   "##   ***                **##",
-   "#   *##**         **  O  *##",
-   "#    ***     O    ##**    *#",
-   "#       O         ##***    #",
-   "#                 ##**     #",
-   "#   O       #*             #",
-   "#*          #**       O    #",
-   "#***        ##**    O    **#",
-   "##****     ###***       *###",
-   "############################"],
-  {"#": Wall,
-   "O": PlantEater,
-   "*": Plant}
-);
-
-for (var i = 0; i < 5; i++) {
-    valley.turn();
-    console.log(valley.toString());
+function SmartPlantEater() {
+    this.energy=20;
+    this.dir = "s";
 }
 
+
+SmartPlantEater.prototype.act = function(context) {
+    
+    var space = context.find(" ");
+
+    if(this.energy > 100 && space)
+        return {type: "reproduce", direction: space};
+
+    var plants = context.findAll("*");
+    if(plants.length > 1)
+        return {type: "eat", direction: randomElement(plants)}
+
+    if (context.look(this.dir) != " ")
+        this.dir = context.find(" ") || "s";
+
+    return {type: "move", direction: this.dir} 
+}
+
+function Tiger() {
+    this.energy=60;
+    this.dir = "s";
+    this.totalFood=[];
+}
+
+Tiger.prototype.act = function (context) {
+
+    var space = context.find(" ");
+    var food = context.findAll("O");
+  	
+  
+    if(food.length){
+      	this.lastEatAgo = 0;
+        return {type: "eat", direction: randomElement(food)}
+    }
+	
+    if(this.energy > 200 && space){
+        return {type:"reproduce", direction: space}
+    }
+
+	this.lastEatAgo++;
+    if(context.look(this.dir) != " ")
+        this.dir = space || "s";
+    if (this.lastEatAgo < 10 || !(this.lastEatAgo % 2))
+    	return {type: "move", direction: this.dir};
+  	else 
+      return {type: "move", direction: this.dir};
+}	
+
+// Uncomment this code for testing avarge length 
+var worldLifeLength = 0;
+var sumLifeAvg = 0;
+var itterations = 10;
+
+var time = new Date();
+
+for (var i = 0; i < itterations; i++) {
+    var valley = new LifelikeWorld(
+        ["####################################################",
+        "#                 ####         ****              ###",
+        "#   *  @  ##                 ########       OO    ##",
+        "#   *    ##        O O                 ****       *#",
+        "#       ##*                        ##########     *#",
+        "#      ##***  *         ****                     **#",
+        "#* **  #  *  ***      #########                  **#",
+        "#* **  #      *               #   *              **#",
+        "#     ##              #   O   #  ***          ######",
+        "#*            @       #       #   *        O  #    #",
+        "#*                    #  ######                 ** #",
+        "###          ****          ***                  ** #",
+        "#       O                        @         O       #",
+        "#   *     ##  ##  ##  ##               ###      *  #",
+        "#   **         #              *       #####  O     #",
+        "##  **  O   O  #  #    ***  ***        ###      ** #",
+        "###               #   *****                    ****#",
+        "####################################################"],
+        {"#": Wall,
+        "@": Tiger,
+        "O": SmartPlantEater, // from previous exercise
+        "*": Plant}
+    );
+
+    while(valley.crittersCount() > 0) {
+        valley.turn();
+    }
+
+    sumLifeAvg = sumLifeAvg + valley.turnNumber;
+}
+
+worldLifeLength = sumLifeAvg/itterations;
+
+console.log(new Date()-time + "ms  " + worldLifeLength);
